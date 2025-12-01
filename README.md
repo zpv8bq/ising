@@ -10,4 +10,5 @@ Multiple examples for Ising model and Metropolis algorithm
 * ising1d_vs_T: Metropolis simulation of cooling a 1d lattice, see ising1d_vs_T.cpp
 
 Complete the exercise for make plots of M,E,C in the 2d lattice using simulated annealing. <br>
-(PHYS5630 only) Also generate the plots using Wang-Landau sampling.
+
+
