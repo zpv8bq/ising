@@ -3,7 +3,8 @@ import random
 import math
 import time
 import os
-from numba import jit #  we REALLY need this here!
+from numba import jit
+import matplotlib.pyplot as plt
 
 # Parameters
 NX = 64
@@ -41,7 +42,17 @@ def magnetization(spin):
     """Calculate average magnetization"""
     return np.mean(spin[1:-1, 1:-1])
 
-def display_lattice(T,spin):
+@jit
+def calculate_energy(spin, h):
+    energy = 0.0
+    for nx in range(1, NX + 1):
+        for ny in range(1, NY + 1):
+            neighbor_sum = (spin[nx, ny-1] + spin[nx, ny+1] + spin[nx-1, ny] + spin[nx+1, ny])
+            energy -= spin[nx, ny] * neighbor_sum / 2.0
+            energy -= h * spin[nx, ny]
+    return energy
+
+def display_lattice(T, spin):
     """Display the lattice configuration"""
     if SleepTime > 0:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -76,6 +87,11 @@ def main():
     
     initialize_hot(spin)
     
+    temperatures = []
+    energies = []
+    magnetizations = []
+    specific_heats = []
+    
     with open(output_filename, 'w') as output:
         # Do ntemp temperatures between Tmax and 0
         for itemp in range(ntemp, 0, -1):
@@ -87,19 +103,55 @@ def main():
                 sweep(beta, h, spin)
             
             # Main sweeps
-            total_mag = 0
+            total_mag = 0.0
+            total_energy = 0.0
+            total_energy_sq = 0.0
+            
             for _ in range(nsweep):
                 sweep(beta, h, spin)
-                total_mag += np.sum(spin[1:-1, 1:-1])
+                mag = np.sum(spin[1:-1, 1:-1])
+                total_mag += mag
+                E = calculate_energy(spin, h)
+                total_energy += E
+                total_energy_sq += E * E
             
             avg_mag = total_mag / (nsweep * NX * NY)
+            avg_energy = total_energy / nsweep
+            avg_energy_per_spin = avg_energy / (NX * NY)
+            avg_energy_sq = total_energy_sq / nsweep
+            variance_energy = avg_energy_sq - avg_energy * avg_energy
+            specific_heat = variance_energy / (T * T * NX * NY)
+            temperatures.append(T)
+            energies.append(avg_energy_per_spin)
+            magnetizations.append(avg_mag)
+            specific_heats.append(specific_heat)
+            
             output.write(f"{T:.6f} {avg_mag:.6f}\n")
             
             if VisualDisplay:
-                display_lattice(T,spin)
+                display_lattice(T, spin)
     
     print(f"Output file is {output_filename}")
 
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12)) 
+    ax1.plot(temperatures, energies, 'bo-', linewidth=2, markersize=4)
+    ax1.set_xlabel('Temperature', fontsize=12)
+    ax1.set_ylabel('Mean Energy per Spin', fontsize=12)
+    ax1.set_title(f'Mean Energy vs Temperature', fontsize=14, fontweight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax2.plot(temperatures, magnetizations, 'ro-', linewidth=2, markersize=4)
+    ax2.set_xlabel('Temperature', fontsize=12)
+    ax2.set_ylabel('Magnetization', fontsize=12)
+    ax2.set_title(f'Magnetization vs Temperature', fontsize=14, fontweight='bold')
+    ax2.grid(True, alpha=0.3)
+    ax3.plot(temperatures, specific_heats, 'go-', linewidth=2, markersize=4)
+    ax3.set_xlabel('Temperature', fontsize=12)
+    ax3.set_ylabel('Specific Heat', fontsize=12)
+    ax3.set_title(f'Specific Heat vs Temperature', fontsize=14, fontweight='bold')
+    ax3.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig('ising.pdf', dpi=300, bbox_inches='tight')
+    plt.show()
+
 if __name__ == "__main__":
     main()
-    
